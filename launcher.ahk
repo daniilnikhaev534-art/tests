@@ -51,7 +51,7 @@ SaveApps() {
 RemoveApp(app) {
     global Apps
     for i, a in Apps {
-        if (a === app || (a.name = app.name && a.path = app.path)) {
+        if (a.name = app.name && a.path = app.path) {
             Apps.RemoveAt(i)
             break
         }
