@@ -114,6 +114,8 @@ ShowAppsMenu() {
     }
     m.Add()
     m.Add("Добавить приложение…", (*) => ShowAddGui())
+    if (Apps.Length)
+        m.Add("Удалить приложение…", (*) => ShowDeleteMenu())
     m.Show()
 }
 
