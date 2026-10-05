@@ -259,15 +259,21 @@ ApplyTransparentBg(hwnd, alpha) {
 
 ; Тёмная тема для ListView
 StyleListView(hwnd) {
-    LVM_SETBKCOLOR := 0x1041
-    LVM_SETTEXTCOLOR := 0x1043
-    LVM_SETTEXTBKCOLOR := 0x1044
-    LVM_SETEXTENDEDLISTVIEWSTYLE := 0x1036
-    ex := 0x20 | 0x10000            ; FULLROWSELECT | DOUBLEBUFFER
-    DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETBKCOLOR, "ptr", 0, "ptr", 0x0014161c)
-    DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTCOLOR, "ptr", 0, "ptr", 0x00ffffff)
-    DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTBKCOLOR, "ptr", 0, "ptr", 0x0014161c)
-    DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETEXTENDEDLISTVIEWSTYLE, "ptr", ex, "ptr", ex)
+    ; правильные константы LVM_FIRST + смещение
+    LVM_SETBKCOLOR := 0x1001               ; LVM_FIRST + 1
+    LVM_SETTEXTCOLOR := 0x103F             ; LVM_FIRST + 63
+    LVM_SETTEXTBKCOLOR := 0x1040           ; LVM_FIRST + 64
+    LVM_SETEXTENDEDLISTVIEWSTYLE := 0x1036 ; LVM_FIRST + 54
+    ex := 0x20 | 0x10000                   ; FULLROWSELECT | DOUBLEBUFFER
+    dark := 0x001c1614                     ; COLORREF для #14161c
+    try {
+        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETBKCOLOR, "uptr", 0, "ptr", dark)
+        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTCOLOR, "uptr", 0, "ptr", 0x00ffffff)
+        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTBKCOLOR, "uptr", 0, "ptr", dark)
+        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETEXTENDEDLISTVIEWSTYLE, "uptr", ex, "ptr", ex)
+    } catch {
+        ; оформление не критично — панель работает и без него
+    }
 }
 
 ; ============================================================
