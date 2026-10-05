@@ -3,7 +3,7 @@
 Persistent()
 
 ; ============================================================
-;  QuickLauncher — панель быстрого запуска с прозрачным фоном
+;  QuickLauncher — панель быстрого запуска (тёмная тема)
 ;  Хранение списка: %APPDATA%\QuickLauncher\apps.txt
 ;  Горячая клавиша: Ctrl+Alt+Space — панель под курсором
 ; ============================================================
@@ -14,11 +14,10 @@ ConfigFile  := ConfigDir "\apps.txt"
 HotkeyStr   := "^!Space"                 ; Ctrl+Alt+Space
 PanelW      := 432                       ; ширина панели
 PanelH      := 472                       ; высота панели
-PanelAlpha  := 228                       ; прозрачность 0..255 (255 = непрозрачно)
 TrayTipText := "QuickLauncher`nCtrl+Alt+Space — панель лаунчера"
 
 global Apps := []
-global ConfigDir, ConfigFile, HotkeyStr, PanelW, PanelH, PanelAlpha
+global ConfigDir, ConfigFile, HotkeyStr, PanelW, PanelH
 global PanelGui := "", PanelEdit := "", PanelLV := "", PanelEmpty := "", PanelRows := []
 
 ; ============================================================
@@ -85,10 +84,10 @@ Launch(app, *) {
 }
 
 ; ============================================================
-;  Панель (прозрачное окно, поиск, иконки)
+;  Панель (тёмное окно, поиск, иконки)
 ; ============================================================
 ShowPanel(*) {
-    global PanelGui, PanelW, PanelH, PanelAlpha
+    global PanelGui, PanelW, PanelH
     if IsObject(PanelGui) {          ; повторное нажатие хоткея — закрыть
         HidePanel()
         return
@@ -127,8 +126,8 @@ ShowPanel(*) {
     g.Show("w" PanelW " h" PanelH " x" px " y" py)
 
     hwnd := g.Hwnd
-    ApplyRoundCorners(hwnd, PanelW, PanelH, 16)
-    ApplyTransparentBg(hwnd, PanelAlpha)
+    ApplyRoundCorners(hwnd, 16)
+    StyleListView(PanelLV.Hwnd)      ; применить после Show — иначе цвета не «прилипают»
     DllCall("user32\SendMessageW", "ptr", PanelEdit.Hwnd, "uint", 0x1501, "ptr", 1, "ptr", StrPtr("Поиск приложения…"))
 
     RefreshPanelList("")
@@ -222,39 +221,15 @@ CenterOnCursorMonitor(w, h, &x, &y) {
     y := T + (B - T - h) // 2
 }
 
-; Скруглённые углы (Win11 — DWM, иначе регион)
-ApplyRoundCorners(hwnd, w, h, r := 16) {
+; Скруглённые углы — регион берём из ФАКТИЧЕСКОГО размера окна
+; (иначе при масштабировании DPI окно обрезается и список «пропадает»)
+ApplyRoundCorners(hwnd, r := 16) {
     try DllCall("dwmapi\DwmSetWindowAttribute", "ptr", hwnd, "uint", 33, "int*", 2, "uint", 4)
-    try {
+    WinGetPos(, , &w, &h, "ahk_id " hwnd)
+    if (w > 0 && h > 0) {
         rgn := DllCall("gdi32\CreateRoundRectRgn", "int", 0, "int", 0, "int", w, "int", h, "int", r, "int", r, "ptr")
         DllCall("user32\SetWindowRgn", "ptr", hwnd, "ptr", rgn, "int", 1)
     }
-}
-
-; Прозрачный фон: acrylic-размытие (Win10/11) + общий уровень прозрачности
-ApplyTransparentBg(hwnd, alpha) {
-    ; SetWindowCompositionAttribute → ACCENT_ENABLE_ACRYLICBLURBEHIND
-    for state in [4, 3] {           ; 4 = acrylic, 3 = blur
-        accent := Buffer(16, 0)
-        NumPut("int", state, accent, 0)          ; AccentState
-        NumPut("int", 2, accent, 4)              ; AccentFlags
-        NumPut("uint", 0xE01c1f28, accent, 8)    ; GradientColor 0xAABBGGRR (тёмный синевой)
-        if (A_PtrSize = 8) {
-            data := Buffer(24, 0)
-            NumPut("uint", 19, data, 0)          ; WCA_ACCENT_POLICY
-            NumPut("ptr", accent.Ptr, data, 8)
-            NumPut("ptr", accent.Size, data, 16)
-        } else {
-            data := Buffer(12, 0)
-            NumPut("uint", 19, data, 0)
-            NumPut("ptr", accent.Ptr, data, 4)
-            NumPut("ptr", accent.Size, data, 8)
-        }
-        if DllCall("user32\SetWindowCompositionAttribute", "ptr", hwnd, "ptr", data)
-            break
-    }
-    ; общий уровень прозрачности окна (работает всегда)
-    WinSetTransparent(alpha, "ahk_id " hwnd)
 }
 
 ; Тёмная тема для ListView
@@ -269,7 +244,7 @@ StyleListView(hwnd) {
     try {
         DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETBKCOLOR, "uptr", 0, "ptr", dark)
         DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTCOLOR, "uptr", 0, "ptr", 0x00ffffff)
-        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTBKCOLOR, "uptr", 0, "ptr", dark)
+        DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETTEXTBKCOLOR, "uptr", 0, "ptr", 0xFFFFFFFF) ; CLR_NONE — прозрачно, виден фон списка
         DllCall("user32\SendMessageW", "ptr", hwnd, "uint", LVM_SETEXTENDEDLISTVIEWSTYLE, "uptr", ex, "ptr", ex)
     } catch {
         ; оформление не критично — панель работает и без него
