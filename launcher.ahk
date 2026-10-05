@@ -87,7 +87,8 @@ Launch(app, *) {
 ;  Панель (тёмное окно, поиск, иконки)
 ; ============================================================
 ShowPanel(*) {
-    global PanelGui, PanelW, PanelH
+    ; важно: контролы должны быть global, иначе RefreshPanelList не увидит ListView
+    global PanelGui, PanelW, PanelH, PanelEdit, PanelLV, PanelEmpty
     if IsObject(PanelGui) {          ; повторное нажатие хоткея — закрыть
         HidePanel()
         return
