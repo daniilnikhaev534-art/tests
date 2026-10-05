@@ -114,7 +114,9 @@ ShowPanel(*) {
     g.SetFont("s8 c6b7280", "Segoe UI")
     g.Add("Text", "x16 y444 w400 h14", "Enter — открыть · Esc — закрыть · Del — убрать из списка")
 
-    g.Add("Button", "x0 y0 w1 h1 Default Hide").OnEvent("Click", (*) => PanelLaunch())
+    goBtn := g.Add("Button", "x0 y0 w1 h1 Default")
+    goBtn.Visible := false
+    goBtn.OnEvent("Click", (*) => PanelLaunch())
     g.OnEvent("Escape", (*) => HidePanel())
 
     PanelGui := g
