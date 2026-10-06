@@ -1,0 +1,4 @@
+tests-*.zip
+tests-*/
+QuickLauncher-*.zip
+*.log
