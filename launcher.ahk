@@ -344,12 +344,12 @@ SaveSettings() {
 }
 
 RemoveApp(app) {
-    global Apps, SelectedIndex, HoveredIndex
+    global Apps, SelectedIndex, HoveredIndex, RadialIsOpen
     if !IsObject(app)
         return
     removed := false
     for i, a in Apps {
-        if (a.name = app.name && a.path = app.path) {
+        if (a = app || (a.name = app.name && a.path = app.path) || (StrLower(a.path) = StrLower(app.path))) {
             if (a.HasProp("pBitmap") && a.pBitmap) {
                 try DllCall("gdiplus\GdipDisposeImage", "ptr", a.pBitmap)
                 a.pBitmap := 0
@@ -368,6 +368,8 @@ RemoveApp(app) {
 
     SaveApps()
     SafeRebuildTray()
+    if (RadialIsOpen)
+        try RenderRadialFrame()
 }
 
 SafeRebuildTray() {
@@ -609,10 +611,10 @@ CloseRadialImmediate() {
 ; Надёжный вотчер: убирает Сатурн при клике мимо, переключении окна, уводе мыши или Esc
 RadialWatchDismiss() {
     global RadialIsOpen, RadialHwnd, AnimState, RadialWinX, RadialWinY, RadialW, RadialH, RadialCX, RadialCY
-    global IsScreensaverActive
+    global IsScreensaverActive, IsModalOpen
 
-    ; В режиме заставки закрытием управляет отдельный обработчик CheckScreensaverWakeup
-    if (IsScreensaverActive)
+    ; В режиме заставки или при открытом модальном окне закрытием управлять нельзя
+    if (IsScreensaverActive || IsModalOpen)
         return
 
     if (!RadialIsOpen || AnimState = "close") {
@@ -1492,7 +1494,7 @@ RadialRButtonUp(wParam, lParam, msg, hwnd) {
         m.Add("Запустить: " app.name, (*) => (CloseRadialImmediate(), Launch(app)))
         m.Add("Открыть папку с файлом", (*) => OpenFileLocation(app))
         m.Add()
-        m.Add("Удалить из списка", (*) => (CloseRadialImmediate(), ConfirmDelete(app)))
+        m.Add("Удалить из лаунчера", (*) => ConfirmDelete(app))
         m.Show()
         IsModalOpen := false
     } else {
@@ -1586,7 +1588,6 @@ RadialKeyHandler(wParam, lParam, msg, hwnd) {
         idx := HoveredIndex ? HoveredIndex : SelectedIndex
         if (idx >= 1 && idx <= N) {
             app := Apps[idx]
-            CloseRadialImmediate()
             ConfirmDelete(app)
         }
         return 0
@@ -1857,10 +1858,63 @@ AddAppItems(m, handler) {
     return taken
 }
 
+ShowDeleteGui(*) {
+    global Apps, IsModalOpen
+    if (Apps.Length = 0) {
+        MsgBox("Список приложений пуст.", "QuickLauncher", "Iconi 0x40000")
+        return
+    }
+
+    IsModalOpen := true
+    g := Gui("+AlwaysOnTop", "QuickLauncher — Удаление приложений")
+    g.SetFont("s10", "Segoe UI")
+    g.Add("Text", "xm w480", "Выберите приложение для удаления из лаунчера:")
+
+    lv := g.Add("ListView", "xm w480 h260 -Multi", ["Название", "Путь к файлу"])
+    lv.ModifyCol(1, 160)
+    lv.ModifyCol(2, 300)
+
+    PopulateList() {
+        lv.Delete()
+        for app in Apps
+            lv.Add("", app.name, app.path)
+        if (Apps.Length)
+            lv.Modify(1, "Select Focus")
+    }
+    PopulateList()
+
+    btnDel := g.Add("Button", "xm w150 Default", "Удалить выбранное")
+    btnClose := g.Add("x+10 w90", "Закрыть")
+
+    DoDelete(*) {
+        row := lv.GetNext()
+        if (!row || row > Apps.Length)
+            return
+        app := Apps[row]
+        choice := MsgBox("Удалить «" app.name "» из лаунчера?`n`n" app.path, "QuickLauncher — Удаление", "YesNo Icon? 262144")
+        if (choice = "Yes") {
+            RemoveApp(app)
+            PopulateList()
+            TrayTip("«" app.name "» удалено", "QuickLauncher")
+            if (Apps.Length = 0) {
+                g.Destroy()
+            }
+        }
+    }
+
+    btnDel.OnEvent("Click", DoDelete)
+    btnClose.OnEvent("Click", (*) => g.Destroy())
+    lv.OnEvent("DoubleClick", DoDelete)
+    g.OnEvent("Close", (*) => (IsModalOpen := false))
+    g.OnEvent("Escape", (*) => g.Destroy())
+
+    g.Show("w500")
+}
+
 ShowDeleteMenu() {
     global Apps
     if (Apps.Length = 0) {
-        MsgBox("Список приложений пуст.", "QuickLauncher", "Iconi")
+        MsgBox("Список приложений пуст.", "QuickLauncher", "Iconi 0x40000")
         return
     }
     m := Menu()
@@ -1877,10 +1931,12 @@ ConfirmDelete(app, *) {
     IsModalOpen := true
     choice := MsgBox(
         "Удалить «" app.name "» из лаунчера?`n`n" app.path,
-        "QuickLauncher", "YesNo IconQuestion")
+        "QuickLauncher — Удаление", "YesNo Icon? 262144")
     IsModalOpen := false
-    if (choice = "Yes")
+    if (choice = "Yes") {
         RemoveApp(app)
+        TrayTip("«" app.name "» удалено", "QuickLauncher")
+    }
 }
 
 ShowAddGui() {
@@ -2020,7 +2076,7 @@ RebuildTray() {
         tray.Add()
     }
     tray.Add("Добавить приложение…", (*) => ShowAddGui())
-    tray.Add("Удалить приложение…", (*) => ShowDeleteMenu())
+    tray.Add("Удалить приложение…", (*) => ShowDeleteGui())
     tray.Add()
     hkName := "Горячая клавиша: " HotkeyToText(HotkeyStr)
     tray.Add(hkName, (*) => "")
